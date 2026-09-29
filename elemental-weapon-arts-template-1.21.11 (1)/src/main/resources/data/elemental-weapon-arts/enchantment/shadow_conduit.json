@@ -1,0 +1,22 @@
+{
+  "description": {
+    "translate": "enchantment.elemental-weapon-arts.shadow_conduit"
+  },
+  "supported_items": [
+    "minecraft:crossbow"
+  ],
+  "weight": 10,
+  "max_level": 3,
+  "min_cost": {
+    "base": 1,
+    "per_level_above_first": 10
+  },
+  "max_cost": {
+    "base": 21,
+    "per_level_above_first": 10
+  },
+  "anvil_cost": 5,
+  "slots": [
+    "hand"
+  ]
+}
