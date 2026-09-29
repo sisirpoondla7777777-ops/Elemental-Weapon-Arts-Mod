@@ -2,6 +2,7 @@ package com.example.command
 
 import com.example.ability.AbilityManager
 import com.example.ability.AbilityResult
+import com.example.ability.AbilityHelp
 import com.example.ability.ElementalEnchantments
 import com.example.element.AbilitySlot
 import com.example.element.Element
@@ -83,6 +84,8 @@ object ElementCommands {
                                         true
                                     )
 
+                                    sendAbilityGuide(player, element)
+
                                     1
                                 }
                         )
@@ -132,6 +135,23 @@ object ElementCommands {
                     Commands.literal("status")
                         .executes {
                             status(it.source)
+                    }
+                )
+
+                .then(
+                    Commands.literal("help")
+                        .executes { ctx ->
+                            val player = ctx.source.playerOrException
+                            val element = PlayerElementData.getElement(player)
+                            if (element == null) {
+                                player.sendSystemMessage(
+                                    Component.literal("Choose an element first: /element set <fire|water|earth|wind|shadow|light>")
+                                )
+                                0
+                            } else {
+                                sendAbilityGuide(player, element)
+                                1
+                            }
                         }
                 )
         )
@@ -159,11 +179,9 @@ object ElementCommands {
             }
 
             AbilityResult.OnCooldown -> {
-                player.sendSystemMessage(
-                    Component.literal(
-                        "That ability is still on cooldown."
-                    )
-                )
+                val remaining = (PlayerElementData.getCooldownEnd(player, slot) - player.level().gameTime)
+                    .coerceAtLeast(0L) / 20.0
+                player.sendSystemMessage(Component.literal("${slot.label()} is still recharging (${"%.1f".format(remaining)}s left)."))
                 0
             }
 
@@ -232,12 +250,40 @@ object ElementCommands {
                         "Conduit: ${element.conduitWeaponName} | " +
                         "Essence: ${essence.toInt()}/" +
                         "${EssenceConfig.MAX_ESSENCE.toInt()} | " +
-                        "Enchant level: $level"
+                        "Enchant level: $level\n" +
+                        AbilitySlot.entries.joinToString(" | ") { slot ->
+                            val remaining = (PlayerElementData.getCooldownEnd(player, slot) - player.level().gameTime)
+                                .coerceAtLeast(0L) / 20.0
+                            "${slot.label()}: ${if (remaining <= 0.0) "READY" else "%.1fs".format(remaining)}"
+                        }
                 )
             },
             false
         )
 
         return 1
+    }
+
+    private fun sendAbilityGuide(player: ServerPlayer, element: Element) {
+        player.sendSystemMessage(Component.literal("Your ${element.id.replaceFirstChar { it.uppercase() }} abilities (Essence costs: 10 / 15 / 20 / 30; cooldowns: 3 / 6 / 10 / 15s):"))
+        AbilitySlot.entries.forEach { slot ->
+            val help = AbilityHelp.forAbility(element, slot)
+            val command = when (slot) {
+                AbilitySlot.POWER1 -> "/element power1"
+                AbilitySlot.POWER2 -> "/element power2"
+                AbilitySlot.POWER3 -> "/element power3"
+                AbilitySlot.CONDUIT -> "/element conduit"
+            }
+            val requirement = if (slot == AbilitySlot.CONDUIT) " (hold ${element.conduitWeaponName})" else ""
+            player.sendSystemMessage(Component.literal("${slot.label()} — ${help.name}: ${help.description} [$command]$requirement"))
+        }
+        player.sendSystemMessage(Component.literal("Use /element status to check Essence and cooldowns. The action bar also shows them during play. Use /element help to show this again."))
+    }
+
+    private fun AbilitySlot.label(): String = when (this) {
+        AbilitySlot.POWER1 -> "Power 1"
+        AbilitySlot.POWER2 -> "Power 2"
+        AbilitySlot.POWER3 -> "Power 3"
+        AbilitySlot.CONDUIT -> "Conduit"
     }
 }
