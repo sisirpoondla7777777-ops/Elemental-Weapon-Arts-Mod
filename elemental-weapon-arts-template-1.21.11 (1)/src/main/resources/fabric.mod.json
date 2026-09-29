@@ -1,0 +1,51 @@
+{
+	"schemaVersion": 1,
+	"id": "elemental-weapon-arts",
+	"version": "${version}",
+	"name": "Elemental Weapon Arts",
+	"description": "This is an example description! Tell everyone what your mod is about!",
+	"authors": [
+		"Me!"
+	],
+	"contact": {
+		"homepage": "https://fabricmc.net/",
+		"sources": "https://github.com/FabricMC/fabric-example-mod"
+	},
+	"license": "CC0-1.0",
+	"icon": "assets/elemental-weapon-arts/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			{
+				"value": "com.example.ElementalWeaponArts",
+				"adapter": "kotlin"
+			}
+		],
+		"client": [
+			{
+				"value": "com.example.client.ElementalWeaponArtsClient",
+				"adapter": "kotlin"
+			}
+		],
+		"fabric-datagen": [
+			{
+				"value": "com.example.client.ElementalWeaponArtsDataGenerator",
+				"adapter": "kotlin"
+			}
+		]
+	},
+	"mixins": [
+		"elemental-weapon-arts.mixins.json",
+		{
+			"config": "elemental-weapon-arts.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~1.21.11",
+		"java": ">=21",
+		"fabric-api": "*",
+		"fabric-language-kotlin": "*"
+	}
+}
