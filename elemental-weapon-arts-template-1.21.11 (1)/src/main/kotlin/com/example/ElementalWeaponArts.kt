@@ -1,57 +1,81 @@
-package com.example.element
+package com.example
 
-import net.minecraft.world.item.Item
-import net.minecraft.world.item.Items
+import com.example.command.ElementCommands
+import com.example.element.EssenceConfig
+import com.example.element.PlayerElementData
+import net.fabricmc.api.ModInitializer
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents
+import net.minecraft.resources.Identifier
+import net.minecraft.server.level.ServerPlayer
+import org.slf4j.LoggerFactory
 
-enum class Element(
-    val id: String,
-    val enchantmentPath: String,
-) {
-    FIRE("fire", "flame_conduit"),
-    WATER("water", "tidal_conduit"),
-    EARTH("earth", "terra_conduit"),
-    WIND("wind", "gale_conduit"),
-    SHADOW("shadow", "shadow_conduit"),
-    LIGHT("light", "radiant_conduit");
+object ElementalWeaponArts : ModInitializer {
 
-    fun isConduitWeapon(item: Item): Boolean = when (this) {
-        FIRE ->
-            item == Items.WOODEN_SWORD ||
-            item == Items.STONE_SWORD ||
-            item == Items.GOLDEN_SWORD ||
-            item == Items.IRON_SWORD ||
-            item == Items.DIAMOND_SWORD ||
-            item == Items.NETHERITE_SWORD
+    const val MOD_ID: String = "elemental-weapon-arts"
 
-        WATER -> item == Items.TRIDENT
+    private val LOGGER =
+        LoggerFactory.getLogger(MOD_ID)
 
-        EARTH -> item == Items.MACE
+    private val elementDataInit =
+        PlayerElementData
 
-        WIND -> item == Items.BOW
+    override fun onInitialize() {
 
-        SHADOW -> item == Items.CROSSBOW
+        LOGGER.info(
+            "Elemental Weapon Arts initializing"
+        )
 
-        LIGHT ->
-            item == Items.WOODEN_AXE ||
-            item == Items.STONE_AXE ||
-            item == Items.GOLDEN_AXE ||
-            item == Items.IRON_AXE ||
-            item == Items.DIAMOND_AXE ||
-            item == Items.NETHERITE_AXE
-    }
+        CommandRegistrationCallback.EVENT.register {
+                dispatcher,
+                context,
+                _ ->
 
-    val conduitWeaponName: String
-        get() = when (this) {
-            FIRE -> "sword"
-            WATER -> "trident"
-            EARTH -> "mace"
-            WIND -> "bow"
-            SHADOW -> "crossbow"
-            LIGHT -> "axe"
+            ElementCommands.register(
+                dispatcher,
+                context
+            )
         }
 
-    companion object {
-        fun fromId(id: String): Element? =
-            entries.firstOrNull { it.id.equals(id, ignoreCase = true) }
+        var tickCounter = 0
+
+        ServerTickEvents.END_SERVER_TICK.register { server ->
+
+            tickCounter++
+
+            if (tickCounter >= 20) {
+
+                tickCounter = 0
+
+                for (
+                    player: ServerPlayer
+                    in server.playerList.players
+                ) {
+
+                    val current =
+                        PlayerElementData.getEssence(
+                            player
+                        )
+
+                    if (
+                        current <
+                        EssenceConfig.MAX_ESSENCE
+                    ) {
+
+                        PlayerElementData.setEssence(
+                            player,
+                            current +
+                                EssenceConfig.REGEN_PER_SECOND
+                        )
+                    }
+                }
+            }
+        }
     }
+
+    fun id(path: String): Identifier =
+        Identifier.fromNamespaceAndPath(
+            MOD_ID,
+            path
+        )
 }
