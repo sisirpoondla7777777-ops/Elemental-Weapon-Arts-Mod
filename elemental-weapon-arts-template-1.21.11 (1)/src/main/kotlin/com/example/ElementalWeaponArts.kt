@@ -1,22 +1,57 @@
-package com.example
+package com.example.element
 
-import net.fabricmc.api.ModInitializer
-import net.minecraft.resources.Identifier
-import org.slf4j.LoggerFactory
+import net.minecraft.world.item.Item
+import net.minecraft.world.item.Items
 
-object ElementalWeaponArts : ModInitializer {
-	const val MOD_ID: String = "elemental-weapon-arts"
+enum class Element(
+    val id: String,
+    val enchantmentPath: String,
+) {
+    FIRE("fire", "flame_conduit"),
+    WATER("water", "tidal_conduit"),
+    EARTH("earth", "terra_conduit"),
+    WIND("wind", "gale_conduit"),
+    SHADOW("shadow", "shadow_conduit"),
+    LIGHT("light", "radiant_conduit");
 
-	private val LOGGER = LoggerFactory.getLogger(MOD_ID)
+    fun isConduitWeapon(item: Item): Boolean = when (this) {
+        FIRE ->
+            item == Items.WOODEN_SWORD ||
+            item == Items.STONE_SWORD ||
+            item == Items.GOLDEN_SWORD ||
+            item == Items.IRON_SWORD ||
+            item == Items.DIAMOND_SWORD ||
+            item == Items.NETHERITE_SWORD
 
-	override fun onInitialize() {
-		// This code runs as soon as Minecraft is in a mod-load-ready state.
-		// However, some things (like resources) may still be uninitialized.
-		// Proceed with mild caution.
+        WATER -> item == Items.TRIDENT
 
-		LOGGER.info("Hello Fabric world!")
-	}
+        EARTH -> item == Items.MACE
 
-	fun id(path: String): Identifier
-		= Identifier.fromNamespaceAndPath(MOD_ID, path)
+        WIND -> item == Items.BOW
+
+        SHADOW -> item == Items.CROSSBOW
+
+        LIGHT ->
+            item == Items.WOODEN_AXE ||
+            item == Items.STONE_AXE ||
+            item == Items.GOLDEN_AXE ||
+            item == Items.IRON_AXE ||
+            item == Items.DIAMOND_AXE ||
+            item == Items.NETHERITE_AXE
+    }
+
+    val conduitWeaponName: String
+        get() = when (this) {
+            FIRE -> "sword"
+            WATER -> "trident"
+            EARTH -> "mace"
+            WIND -> "bow"
+            SHADOW -> "crossbow"
+            LIGHT -> "axe"
+        }
+
+    companion object {
+        fun fromId(id: String): Element? =
+            entries.firstOrNull { it.id.equals(id, ignoreCase = true) }
+    }
 }
