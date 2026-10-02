@@ -1,3 +1,5 @@
+// src/main/kotlin/com/example/ability/ElementalEnchantments.kt
+
 package com.example.ability
 
 import com.example.ElementalWeaponArts
@@ -16,22 +18,17 @@ object ElementalEnchantments {
     ): ResourceKey<Enchantment> =
         ResourceKey.create(
             Registries.ENCHANTMENT,
-            ElementalWeaponArts.id(
-                element.enchantmentPath
-            )
+            ElementalWeaponArts.id(element.enchantmentPath)
         )
 
     fun levelOnHeldItem(
         player: ServerPlayer,
         element: Element
     ): Int {
-
         val registry =
             player.level()
                 .registryAccess()
-                .lookupOrThrow(
-                    Registries.ENCHANTMENT
-                )
+                .lookupOrThrow(Registries.ENCHANTMENT)
 
         val holder: Holder<Enchantment> =
             registry
@@ -44,4 +41,7 @@ object ElementalEnchantments {
             player.mainHandItem
         )
     }
+
+    fun discountMultiplier(level: Int): Double =
+        (1.0 - (level.coerceIn(0, 3) * 0.05))
 }
