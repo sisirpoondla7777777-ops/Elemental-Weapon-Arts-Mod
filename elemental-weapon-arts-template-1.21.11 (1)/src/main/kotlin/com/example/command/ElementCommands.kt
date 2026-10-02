@@ -1,8 +1,10 @@
+// src/main/kotlin/com/example/command/ElementCommands.kt
+
 package com.example.command
 
+import com.example.ability.AbilityHelp
 import com.example.ability.AbilityManager
 import com.example.ability.AbilityResult
-import com.example.ability.AbilityHelp
 import com.example.ability.ElementalEnchantments
 import com.example.element.AbilitySlot
 import com.example.element.Element
@@ -27,7 +29,7 @@ object ElementCommands {
             Commands.literal("element")
 
                 .then(
-                    Commands.literal("set")
+                    Commands.literal("choose")
                         .then(
                             Commands.argument(
                                 "element",
@@ -40,53 +42,42 @@ object ElementCommands {
                                     )
                                 }
                                 .executes { ctx ->
-
-                                    val player =
-                                        ctx.source.playerOrException
-
-                                    val raw =
+                                    chooseElement(
+                                        ctx.source.playerOrException,
                                         StringArgumentType.getString(
                                             ctx,
                                             "element"
                                         )
-
-                                    val element =
-                                        Element.fromId(raw)
-
-                                    if (element == null) {
-                                        ctx.source.sendFailure(
-                                            Component.literal(
-                                                "Unknown element '$raw'. " +
-                                                    "Choose one of: " +
-                                                    Element.entries.joinToString {
-                                                        it.id
-                                                    }
-                                            )
-                                        )
-
-                                        return@executes 0
-                                    }
-
-                                    PlayerElementData.setElement(
-                                        player,
-                                        element
                                     )
+                                }
+                        )
+                )
 
-                                    ctx.source.sendSuccess(
-                                        {
-                                            Component.literal(
-                                                "You are now attuned to " +
-                                                    "${element.id.replaceFirstChar { c -> c.uppercase() }}. " +
-                                                    "Your conduit weapon is the " +
-                                                    "${element.conduitWeaponName}."
-                                            )
-                                        },
+                .then(
+                    Commands.literal("set")
+                        .requires { source ->
+                            source.hasPermission(2)
+                        }
+                        .then(
+                            Commands.argument(
+                                "element",
+                                StringArgumentType.word()
+                            )
+                                .suggests { _, builder ->
+                                    SharedSuggestionProvider.suggest(
+                                        Element.entries.map { it.id },
+                                        builder
+                                    )
+                                }
+                                .executes { ctx ->
+                                    setElement(
+                                        ctx.source.playerOrException,
+                                        StringArgumentType.getString(
+                                            ctx,
+                                            "element"
+                                        ),
                                         true
                                     )
-
-                                    sendAbilityGuide(player, element)
-
-                                    1
                                 }
                         )
                 )
@@ -135,21 +126,31 @@ object ElementCommands {
                     Commands.literal("status")
                         .executes {
                             status(it.source)
-                    }
+                        }
                 )
 
                 .then(
                     Commands.literal("help")
                         .executes { ctx ->
-                            val player = ctx.source.playerOrException
-                            val element = PlayerElementData.getElement(player)
+                            val player =
+                                ctx.source.playerOrException
+
+                            val element =
+                                PlayerElementData.getElement(player)
+
                             if (element == null) {
                                 player.sendSystemMessage(
-                                    Component.literal("Choose an element first: /element set <fire|water|earth|wind|shadow|light>")
+                                    Component.literal(
+                                        "Choose an element first: " +
+                                            "/element choose <fire|water|earth|wind|shadow|light>"
+                                    )
                                 )
                                 0
                             } else {
-                                sendAbilityGuide(player, element)
+                                sendAbilityGuide(
+                                    player,
+                                    element
+                                )
                                 1
                             }
                         }
@@ -157,31 +158,115 @@ object ElementCommands {
         )
     }
 
+    private fun chooseElement(
+        player: ServerPlayer,
+        raw: String
+    ): Int {
+        if (PlayerElementData.getElement(player) != null) {
+            player.sendSystemMessage(
+                Component.literal(
+                    "You have already chosen an element. " +
+                        "Only an operator can change it with /element set."
+                )
+            )
+            return 0
+        }
+
+        return setElement(
+            player,
+            raw,
+            false
+        )
+    }
+
+    private fun setElement(
+        player: ServerPlayer,
+        raw: String,
+        adminChange: Boolean
+    ): Int {
+        val element =
+            Element.fromId(raw)
+
+        if (element == null) {
+            player.sendSystemMessage(
+                Component.literal(
+                    "Unknown element '$raw'. Choose: " +
+                        Element.entries.joinToString(", ") {
+                            it.id
+                        }
+                )
+            )
+            return 0
+        }
+
+        PlayerElementData.setElement(
+            player,
+            element
+        )
+
+        player.sendSystemMessage(
+            Component.literal(
+                if (adminChange) {
+                    "Element changed to ${element.id}."
+                } else {
+                    "You are now attuned to ${element.id}."
+                }
+            )
+        )
+
+        player.sendSystemMessage(
+            Component.literal(
+                "Conduit weapon: ${element.conduitWeaponName}."
+            )
+        )
+
+        sendAbilityGuide(
+            player,
+            element
+        )
+
+        return 1
+    }
+
     private fun useAbility(
         player: ServerPlayer,
         slot: AbilitySlot
     ): Int {
-
         return when (
-            AbilityManager.use(player, slot)
+            AbilityManager.use(
+                player,
+                slot
+            )
         ) {
-
             AbilityResult.Success -> 1
 
             AbilityResult.NoElement -> {
                 player.sendSystemMessage(
                     Component.literal(
-                        "You haven't chosen an element yet. " +
-                            "Use /element set <element>."
+                        "Choose an element first with " +
+                            "/element choose <element>."
                     )
                 )
                 0
             }
 
             AbilityResult.OnCooldown -> {
-                val remaining = (PlayerElementData.getCooldownEnd(player, slot) - player.level().gameTime)
-                    .coerceAtLeast(0L) / 20.0
-                player.sendSystemMessage(Component.literal("${slot.label()} is still recharging (${"%.1f".format(remaining)}s left)."))
+                val remaining =
+                    (
+                        PlayerElementData.getCooldownEnd(
+                            player,
+                            slot
+                        ) - player.level().gameTime
+                    )
+                        .coerceAtLeast(0L) / 20.0
+
+                player.sendSystemMessage(
+                    Component.literal(
+                        "${slot.label()} is still recharging " +
+                            "(${"%.1f".format(remaining)}s left)."
+                    )
+                )
+
                 0
             }
 
@@ -200,9 +285,8 @@ object ElementCommands {
 
                 player.sendSystemMessage(
                     Component.literal(
-                        "You need your conduit weapon " +
-                            "(${element?.conduitWeaponName ?: "?"}) " +
-                            "in hand to use your Conduit Power."
+                        "You need your ${element?.conduitWeaponName ?: "conduit weapon"} " +
+                            "in your main hand to use the Conduit."
                     )
                 )
                 0
@@ -213,7 +297,6 @@ object ElementCommands {
     private fun status(
         source: CommandSourceStack
     ): Int {
-
         val player =
             source.playerOrException
 
@@ -224,8 +307,7 @@ object ElementCommands {
             source.sendSuccess(
                 {
                     Component.literal(
-                        "No element chosen. " +
-                            "Use /element set <element>."
+                        "No element chosen."
                     )
                 },
                 false
@@ -237,7 +319,7 @@ object ElementCommands {
         val essence =
             PlayerElementData.getEssence(player)
 
-        val level =
+        val enchantLevel =
             ElementalEnchantments.levelOnHeldItem(
                 player,
                 element
@@ -246,44 +328,100 @@ object ElementCommands {
         source.sendSuccess(
             {
                 Component.literal(
-                    "Element: ${element.id} | " +
-                        "Conduit: ${element.conduitWeaponName} | " +
+                    "Element: ${element.id}\n" +
+                        "Conduit: ${element.conduitWeaponName}\n" +
                         "Essence: ${essence.toInt()}/" +
-                        "${EssenceConfig.MAX_ESSENCE.toInt()} | " +
-                        "Enchant level: $level\n" +
-                        AbilitySlot.entries.joinToString(" | ") { slot ->
-                            val remaining = (PlayerElementData.getCooldownEnd(player, slot) - player.level().gameTime)
-                                .coerceAtLeast(0L) / 20.0
-                            "${slot.label()}: ${if (remaining <= 0.0) "READY" else "%.1fs".format(remaining)}"
-                        }
+                        EssenceConfig.MAX_ESSENCE.toInt() + "\n" +
+                        "Conduit enchantment: " +
+                        "Level $enchantLevel"
                 )
             },
             false
         )
 
+        AbilitySlot.entries.forEach { slot ->
+            val remaining =
+                (
+                    PlayerElementData.getCooldownEnd(
+                        player,
+                        slot
+                    ) - player.level().gameTime
+                )
+                    .coerceAtLeast(0L) / 20.0
+
+            source.sendSuccess(
+                {
+                    Component.literal(
+                        "${slot.label()}: " +
+                            if (remaining <= 0.0) {
+                                "READY"
+                            } else {
+                                "${"%.1f".format(remaining)}s"
+                            }
+                    )
+                },
+                false
+            )
+        }
+
         return 1
     }
 
-    private fun sendAbilityGuide(player: ServerPlayer, element: Element) {
-        player.sendSystemMessage(Component.literal("Your ${element.id.replaceFirstChar { it.uppercase() }} abilities (Essence costs: 10 / 15 / 20 / 30; cooldowns: 3 / 6 / 10 / 15s):"))
+    private fun sendAbilityGuide(
+        player: ServerPlayer,
+        element: Element
+    ) {
+        player.sendSystemMessage(
+            Component.literal(
+                "${element.id.replaceFirstChar { it.uppercase() }} abilities"
+            )
+        )
+
         AbilitySlot.entries.forEach { slot ->
-            val help = AbilityHelp.forAbility(element, slot)
-            val command = when (slot) {
-                AbilitySlot.POWER1 -> "/element power1"
-                AbilitySlot.POWER2 -> "/element power2"
-                AbilitySlot.POWER3 -> "/element power3"
-                AbilitySlot.CONDUIT -> "/element conduit"
-            }
-            val requirement = if (slot == AbilitySlot.CONDUIT) " (hold ${element.conduitWeaponName})" else ""
-            player.sendSystemMessage(Component.literal("${slot.label()} — ${help.name}: ${help.description} [$command]$requirement"))
+            val help =
+                AbilityHelp.forAbility(
+                    element,
+                    slot
+                )
+
+            val command =
+                when (slot) {
+                    AbilitySlot.POWER1 ->
+                        "/element power1"
+
+                    AbilitySlot.POWER2 ->
+                        "/element power2"
+
+                    AbilitySlot.POWER3 ->
+                        "/element power3"
+
+                    AbilitySlot.CONDUIT ->
+                        "/element conduit"
+                }
+
+            val requirement =
+                if (slot == AbilitySlot.CONDUIT) {
+                    " Requires ${element.conduitWeaponName}."
+                } else {
+                    ""
+                }
+
+            player.sendSystemMessage(
+                Component.literal(
+                    "${slot.label()} — " +
+                        "${help.name}: " +
+                        "${help.description}. " +
+                        "$command$requirement"
+                )
+            )
         }
-        player.sendSystemMessage(Component.literal("Use /element status to check Essence and cooldowns. The action bar also shows them during play. Use /element help to show this again."))
     }
 
-    private fun AbilitySlot.label(): String = when (this) {
-        AbilitySlot.POWER1 -> "Power 1"
-        AbilitySlot.POWER2 -> "Power 2"
-        AbilitySlot.POWER3 -> "Power 3"
-        AbilitySlot.CONDUIT -> "Conduit"
-    }
+    private fun AbilitySlot.label(): String =
+        when (this) {
+            AbilitySlot.POWER1 -> "Power 1"
+            AbilitySlot.POWER2 -> "Power 2"
+            AbilitySlot.POWER3 -> "Power 3"
+            AbilitySlot.CONDUIT -> "Conduit"
+        }
 }
